@@ -12,8 +12,8 @@
     }
 
     #rpiHeatmap {
-      width: 100vw;
-      height: 100vh;
+      width: 100%;
+      height: 500px;
     }
   </style>
 </head>
@@ -103,7 +103,7 @@
           left: 120,
           right: 120,
           top: 120,   // 上面多留空間給「測站」這個上方x軸標題
-          bottom: 120 // 下面留給圖例
+          bottom: 100 // 下面留給圖例
         },
 
         // ⭐ 兩條 x 軸：下面一條顯示站名，上面一條只顯示「測站」標題
@@ -150,7 +150,7 @@
         visualMap: {
           type: "piecewise",
           orient: "horizontal",   // 橫排
-          bottom: 20,
+          bottom: 50,
           left: "center",
           textStyle: { fontSize: 14 },
           pieces: [
