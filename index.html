@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>2021~2024年台北市各測站RPI值熱力圖</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #ffffff;
+      font-family: "Microsoft JhengHei", system-ui, sans-serif;
+    }
+
+    #rpiHeatmap {
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="rpiHeatmap"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script>
+    const csvFile = "3.9_1.歷年各站RPI.csv";
+
+    function rpiLevel(val) {
+      if (val <= 2.0) return "未(稍)受污染";
+      if (val <= 3.0) return "輕度污染";
+      if (val <= 6.0) return "中度污染";
+      return "嚴重污染";
+    }
+
+    // 讀 CSV
+    fetch(csvFile)
+      .then(res => res.text())
+      .then(text => {
+        const cleaned = text.replace(/^\uFEFF/, "");
+        const lines = cleaned.trim().split(/\r?\n/).filter(l => l.trim() !== "");
+
+        const header = lines[0].split(",");
+        const years = header.slice(1).map(h => h.trim());   // ["2021","2022","2023","2024"]
+        const stations = [];
+        const heatData = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(",");
+          const stationName = cols[0].trim();
+          if (!stationName) continue;
+
+          const rowValues = cols.slice(1);
+          const stationIndex = stations.length;
+          stations.push(stationName);
+
+          rowValues.forEach((v, j) => {
+            const valStr = v.trim();
+            if (!valStr || valStr === "—") return;
+            const num = Number(valStr);
+            if (isNaN(num)) return;
+
+            const yearIndex = j; // y 軸 index
+            // x = 測站 index, y = 年份 index
+            heatData.push([stationIndex, yearIndex, num]);
+          });
+        }
+
+        drawHeatmap(years, stations, heatData);
+      })
+      .catch(err => {
+        console.error("讀取 CSV 發生錯誤：", err);
+      });
+
+    function drawHeatmap(years, stations, data) {
+      const chart = echarts.init(document.getElementById("rpiHeatmap"));
+
+      const option = {
+        title: {
+          text: "2021~2024年台北市各測站RPI值熱力圖",
+          left: "center",
+          top: 10,
+          textStyle: { fontSize: 22 }
+        },
+
+        tooltip: {
+          formatter: params => {
+            const xIndex = params.value[0];
+            const yIndex = params.value[1];
+            const val = params.value[2];
+            const station = stations[xIndex];
+            const year = years[yIndex];
+            return `
+            <b>${station}</b><br>
+            年份：${year}<br>
+            RPI：${val.toFixed(3)}<br>
+            污染等級：${rpiLevel(val)}
+          `;
+          }
+        },
+
+        grid: {
+          left: 120,
+          right: 120,
+          top: 120,   // 上面多留空間給「測站」這個上方x軸標題
+          bottom: 120 // 下面留給圖例
+        },
+
+        // ⭐ 兩條 x 軸：下面一條顯示站名，上面一條只顯示「測站」標題
+        xAxis: [
+          {
+            type: "category",
+            data: stations,
+            position: "top",   // ⭐ 測站名稱放到上面
+            axisLabel: {
+              fontSize: 13,
+              rotate: 0,
+              margin: 10
+            },
+            axisTick: { show: true },
+            axisLine: { lineStyle: { color: "#333" } },
+            name: "測站",                 // ⭐ 在上方顯示橫軸標題
+            nameLocation: "middle",
+            nameGap: 45,                  // ⭐ 與站名之間的距離
+            nameTextStyle: { fontSize: 16 }
+          },
+
+          // ⭐ 第二條 x 軸關掉（避免與上面重複）
+          {
+            type: "category",
+            show: false
+          }
+        ],
+
+
+        // ⭐ y 軸 = 年份，並且 2021 在最上面
+        yAxis: {
+          type: "category",
+          data: years,
+          inverse: true,             // ⭐ 顛倒順序：陣列第一個顯示在最上面
+          name: "年份",
+          nameLocation: "middle",
+          nameGap: 60,
+          nameTextStyle: { fontSize: 16 },
+          axisLabel: { fontSize: 14 },
+          axisLine: { lineStyle: { color: "#333" } }
+        },
+
+        // ⭐ 視覺圖例：放在最下面、一橫排
+        visualMap: {
+          type: "piecewise",
+          orient: "horizontal",   // 橫排
+          bottom: 60,
+          left: "center",
+          textStyle: { fontSize: 16 },
+          pieces: [
+            { min: 0, max: 2.0, color: "#8BC34A", label: "未(稍)受污染 ≤2.0" },
+            { min: 2.000001, max: 3.0, color: "#CDDC39", label: "輕度污染 2.0–3.0" },
+            { min: 3.000001, max: 6.0, color: "#FFC107", label: "中度污染 3.1–6.0" },
+            { min: 6.000001, max: 10, color: "#F44336", label: "嚴重污染 >6.0" }
+          ]
+        },
+
+        series: [
+          {
+            type: "heatmap",
+            data: data,
+            xAxisIndex: 0, // 用下面那條x軸（顯示站名的那條）
+            label: {
+              show: true,
+              formatter: p => p.value[2].toFixed(2),
+              color: "#000",
+              fontSize: 14
+            },
+            emphasis: {
+              itemStyle: {
+                borderColor: "#000",
+                borderWidth: 1
+              }
+            }
+          }
+        ]
+      };
+
+      chart.setOption(option);
+      window.addEventListener("resize", () => chart.resize());
+    }
+  </script>
+
+</body>
+
+</html>
